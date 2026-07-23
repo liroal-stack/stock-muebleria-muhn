@@ -26,7 +26,8 @@ header {
   background: var(--white); border-bottom: 3px solid var(--red);
   padding: 0 16px; height: 68px;
   display: flex; align-items: center; justify-content: space-between;
-  position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow-md);
+  position: fixed; top: 0; left: 0; right: 0;
+  z-index: 100; box-shadow: var(--shadow-md);
 }
 .logo { display: flex; align-items: center; gap: 12px; }
 .logo-icon {
@@ -48,7 +49,7 @@ header {
 @media (max-width: 480px) { .header-badge { display: none; } }
 
 /* MAIN */
-main { max-width: 1280px; margin: 0 auto; padding: 16px 12px; }
+main { max-width: 1280px; margin: 0 auto; padding: 16px 12px; padding-top: 24px; }
 @media (min-width: 768px) { main { padding: 32px 24px; } }
 
 .accent-line { height: 3px; background: linear-gradient(90deg, var(--red) 0%, var(--red-dark) 50%, var(--gray-900) 100%); border-radius: 2px; margin-bottom: 20px; }
@@ -500,8 +501,9 @@ tbody tr.no-stock:hover  { background: #FFEBEE; }
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  position: sticky;
+  position: fixed;
   top: 68px;
+  left: 0; right: 0;
   z-index: 90;
 }
 .module-tabs::-webkit-scrollbar { display: none; }
@@ -682,6 +684,7 @@ tbody tr.no-stock:hover  { background: #FFEBEE; }
     Revestimientos
   </button>
 </div>
+<div style="height: 116px;"></div>
 
 <main>
   <div class="accent-line"></div>
