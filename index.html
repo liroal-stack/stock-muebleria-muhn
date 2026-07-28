@@ -1526,8 +1526,14 @@ async function confirmDelProveedor() {
 async function loadStock() {
   setLoading(true);
   try {
-    stockColchones = await sbRequest('GET', '?select=*&order=id.asc', null, 'stock') || [];
-    if (stockColchones.length === 0) await seedColchones();
+    stockColchones = await sbRequest('GET', '?select=*&order=descripcion.asc', null, 'stock') || [];
+    if (stockColchones.length === 0) {
+      // Intentar cargar catálogo primero para seed completo
+      if (!catalogoCargado) {
+        catalogo = await sbRequest('GET', '?select=*&order=linea.asc,modelo.asc,medida.asc', null, 'catalogo_maxiking') || [];
+      }
+      await seedColchones();
+    }
     renderTable();
   } catch(e) {
     showToast('Error al conectar con la base de datos', 'error');
@@ -1538,26 +1544,55 @@ async function loadStock() {
 }
 
 async function seedColchones() {
-  const d = '2026-04-24';
-  const items = [
-    ['11709',  'COLCHO 200 X 200 X 30 ZAFIRO',   2],
-    ['11725',  'SOMIER 100 X 200 ZAFIRO',          4],
-    ['27299',  'COLC 200 X 200 SILENCIO GRAND',    2],
-    ['27601',  'SOMIER 100x200 SILENCIO',          4],
-    ['12401',  'COL 200X200 ESPEJO C/P DE LUNA',   1],
-    ['12601',  'SOMIER 100x200 ESPEJO',            2],
-    ['12401B', 'COLCH 200x200 BRISAS C/P',         1],
-    ['12601B', 'SOMIER 100 X 200 BRISAS',          2],
-    ['10140',  'COLCHO 140 ESMERALDA BEIGE',       4],
-    ['10640',  'SOMIER 140 ESMERALDA MARRON',      4],
-    ['11140',  'COLCHO 140 X 22 ARMONIA',          2],
-    ['10180',  'COLCHON 080 X 17 SAB STD',         6],
-    ['10361',  'COL 160x200 ESPEJO C/P DE LUNA',   1],
-    ['10581',  'SOMIER 080x200 ESPEJO',            2],
-    ['10706',  'COLCHO 160 X 200 X 30 ZAFIRO',    1],
-  ];
-  const rows = items.map(([codigo, descripcion, cantidad]) => ({ codigo, descripcion, cantidad, fecha: d }));
-  stockColchones = await sbRequest('POST', '', rows, 'stock') || [];
+  // Cargar catálogo si no está cargado todavía
+  let cat = catalogo;
+  if (!cat || cat.length === 0) {
+    cat = await sbRequest('GET', '?select=*&order=linea.asc,modelo.asc,medida.asc', null, 'catalogo_maxiking') || [];
+  }
+
+  // Si el catálogo tampoco tiene datos todavía, usar lista base de la factura original
+  if (cat.length === 0) {
+    const d = '2026-04-24';
+    const items = [
+      ['11709',  'COLCHON 200 X 200 X 30 ZAFIRO',    0],
+      ['11725',  'SOMMIER 100 X 200 ZAFIRO',           0],
+      ['27299',  'COLCHON 200 X 200 SILENCIO GRAND',   0],
+      ['27601',  'SOMMIER 100x200 SILENCIO',           0],
+      ['12401',  'COLCHON 200X200 ESPEJO C/P DE LUNA', 0],
+      ['12601',  'SOMMIER 100x200 ESPEJO',             0],
+      ['12401B', 'COLCHON 200x200 BRISAS C/P',         0],
+      ['12601B', 'SOMMIER 100 X 200 BRISAS',           0],
+      ['10140',  'COLCHON 140 ESMERALDA BEIGE',        0],
+      ['10640',  'SOMMIER 140 ESMERALDA MARRON',       0],
+      ['11140',  'COLCHON 140 X 22 ARMONIA',           0],
+      ['10180',  'COLCHON 080 X 17 SAB STD',           0],
+      ['10361',  'COLCHON 160x200 ESPEJO C/P DE LUNA', 0],
+      ['10581',  'SOMMIER 080x200 ESPEJO',             0],
+      ['10706',  'COLCHON 160 X 200 X 30 ZAFIRO',     0],
+    ];
+    const rows = items.map(([codigo, descripcion, cantidad]) => ({ codigo, descripcion, cantidad, fecha: today() }));
+    stockColchones = await sbRequest('POST', '', rows, 'stock') || [];
+    return;
+  }
+
+  // Cargar desde catálogo — solo colchones y sommiers, cada uno con su medida
+  const aptos = cat.filter(a => a.tipo === 'colchon' || a.tipo === 'sommier');
+  const rows = aptos.map(a => ({
+    codigo: a.id ? String(a.id) : '',
+    descripcion: `${a.tipo === 'colchon' ? 'COLCHON' : 'SOMMIER'} ${a.modelo} ${a.medida}`,
+    cantidad: 0,
+    fecha: today()
+  }));
+
+  // Insertar en lotes de 50
+  stockColchones = [];
+  const lotes = [];
+  for (let i = 0; i < rows.length; i += 50)
+    lotes.push(rows.slice(i, i + 50));
+  for (const lote of lotes) {
+    const inserted = await sbRequest('POST', '', lote, 'stock') || [];
+    stockColchones.push(...inserted);
+  }
 }
 
 // ── LOAD MUEBLES ──────────────────────────────────────────────────────────────
@@ -2214,7 +2249,7 @@ function renderOcrPreview(items) {
 // ── SUBIR FACTURA (Opción B: referencia visual + carga manual) ────────────────
 let sfItemsList = []; // artículos cargados manualmente
 
-const COLCHON_KEYWORDS = ['colch','colc','col ','somier','som ','mattress'];
+const COLCHON_KEYWORDS = ['colchon','colcho','colch','colc','col ','somier','sommier','som ','mattress'];
 function isColchonOSomier(desc) {
   return COLCHON_KEYWORDS.some(k => desc.toLowerCase().includes(k));
 }
@@ -2736,9 +2771,6 @@ async function initPedidos() {
       }
       catalogoCargado = true;
 
-      // Sincronizar colchones y sommiers del catálogo al stock
-      await syncCatalogoToStock();
-
       // Cargar historial
       historialPedidos = await sbRequest('GET', '?select=*&order=created_at.desc', null, 'pedidos') || [];
       // Poblar filtro de líneas
@@ -2961,7 +2993,7 @@ async function generarPedidoPDF() {
   </head><body>
   <div class="header">
     <div class="logo-wrap">
-      <img class="logo-img" src="data:image/jpeg;base64,${LOGO_B64_PEDIDO}">
+      <img class="logo-img" src="logo_muebleria.jpg">
     </div>
     <div class="header-info">
       <h1>Orden de Pedido</h1>
