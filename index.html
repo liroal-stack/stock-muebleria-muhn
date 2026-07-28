@@ -2735,6 +2735,10 @@ async function initPedidos() {
         catalogo = await sbRequest('GET', '?select=*&order=linea.asc,modelo.asc,medida.asc', null, 'catalogo_maxiking') || [];
       }
       catalogoCargado = true;
+
+      // Sincronizar colchones y sommiers del catálogo al stock
+      await syncCatalogoToStock();
+
       // Cargar historial
       historialPedidos = await sbRequest('GET', '?select=*&order=created_at.desc', null, 'pedidos') || [];
       // Poblar filtro de líneas
@@ -2751,6 +2755,44 @@ async function initPedidos() {
     }
   }
   renderCatalogo();
+}
+
+async function syncCatalogoToStock() {
+  // Solo colchones y sommiers del catálogo
+  const aptos = catalogo.filter(a => a.tipo === 'colchon' || a.tipo === 'sommier');
+  const nuevos = [];
+
+  for (const item of aptos) {
+    // Descripcion normalizada: "Colchón MODELO MEDIDA"
+    const tipoLabel = item.tipo === 'colchon' ? 'Colchón' : 'Sommier';
+    const desc = `${tipoLabel} ${item.modelo} ${item.medida}`;
+
+    // Verificar si ya existe en stock por descripcion o codigo similar
+    const existe = stockColchones.find(s =>
+      s.descripcion.toLowerCase() === desc.toLowerCase()
+    );
+    if (!existe) {
+      nuevos.push({
+        codigo: item.linea.slice(0,4).toUpperCase() + '-' + item.id,
+        descripcion: desc,
+        cantidad: 0,
+        fecha: today()
+      });
+    }
+  }
+
+  if (nuevos.length === 0) return;
+
+  // Insertar en lotes de 50
+  showToast(`Agregando ${nuevos.length} artículos del catálogo al stock...`, 'info');
+  const lotes = [];
+  for (let i = 0; i < nuevos.length; i += 50)
+    lotes.push(nuevos.slice(i, i + 50));
+  for (const lote of lotes) {
+    const inserted = await sbRequest('POST', '', lote, 'stock') || [];
+    stockColchones.push(...inserted);
+  }
+  showToast(`✓ ${nuevos.length} artículos sincronizados al stock de Colchones`, 'success');
 }
 
 function calcSugerido(item) {
