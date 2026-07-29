@@ -810,8 +810,16 @@ tbody tr.no-stock:hover  { background: #FFEBEE; }
   <div class="toolbar">
     <div class="search-box">
       <svg class="search-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="text" placeholder="Buscar artículo o código..." id="searchInput" oninput="renderTable()" autocomplete="off">
+      <input type="text" placeholder="Buscar por nombre... (ej: BRISAS)" id="searchInput" oninput="renderTable()" autocomplete="off">
     </div>
+    <select class="filter-select" id="filterTipo" onchange="renderTable()">
+      <option value="all">Colchones y Sommiers</option>
+      <option value="COLCHON">Solo Colchones</option>
+      <option value="SOMMIER">Solo Sommiers</option>
+    </select>
+    <select class="filter-select" id="filterMedida" onchange="renderTable()">
+      <option value="all">Todas las medidas</option>
+    </select>
     <select class="filter-select" id="filterStock" onchange="renderTable()">
       <option value="all">Todos</option>
       <option value="ok">Stock normal</option>
@@ -1722,10 +1730,52 @@ function renderTable() {
   const filter  = document.getElementById('filterStock').value;
   const mobile  = window.innerWidth <= 640;
 
+  // Filtros extra solo para colchones
+  const filterTipo   = activeModule === 'colchones' ? (document.getElementById('filterTipo')?.value   || 'all') : 'all';
+  const filterMedida = activeModule === 'colchones' ? (document.getElementById('filterMedida')?.value || 'all') : 'all';
+
   const activeStock = getActiveStock();
+
+  // Poblar selector de medidas dinámicamente (solo en colchones)
+  if (activeModule === 'colchones') {
+    const selMedida = document.getElementById('filterMedida');
+    if (selMedida) {
+      const currentVal = selMedida.value;
+      // Extraer medidas únicas de la descripcion (última palabra)
+      const medidas = [...new Set(
+        activeStock.map(i => {
+          const parts = i.descripcion.trim().split(' ');
+          return parts[parts.length - 1];
+        }).filter(m => m && m !== '—')
+      )].sort((a, b) => {
+        // Ordenar numéricamente
+        const na = parseFloat(a); const nb = parseFloat(b);
+        return isNaN(na) || isNaN(nb) ? a.localeCompare(b) : na - nb;
+      });
+      if (selMedida.options.length !== medidas.length + 1) {
+        selMedida.innerHTML = '<option value="all">Todas las medidas</option>' +
+          medidas.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
+        selMedida.value = currentVal;
+      }
+    }
+  }
+
   const items = activeStock.filter(item => {
+    // Búsqueda por nombre — busca en toda la descripcion
     const hit = item.descripcion.toLowerCase().includes(search) || item.codigo.toLowerCase().includes(search);
     if (!hit) return false;
+
+    // Filtro por tipo (COLCHON / SOMMIER)
+    if (filterTipo !== 'all' && !item.descripcion.toUpperCase().startsWith(filterTipo)) return false;
+
+    // Filtro por medida (última palabra de la descripcion)
+    if (filterMedida !== 'all') {
+      const parts = item.descripcion.trim().split(' ');
+      const medida = parts[parts.length - 1];
+      if (medida !== filterMedida) return false;
+    }
+
+    // Filtro por estado stock
     if (filter === 'ok')   return item.cantidad > 2;
     if (filter === 'low')  return item.cantidad > 0 && item.cantidad <= 2;
     if (filter === 'zero') return item.cantidad === 0;
