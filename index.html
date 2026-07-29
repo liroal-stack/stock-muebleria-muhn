@@ -1534,28 +1534,13 @@ async function loadStock() {
   setLoading(true);
   try {
     stockColchones = await sbRequest('GET', '?select=*&order=descripcion.asc', null, 'stock') || [];
-
     if (stockColchones.length === 0) {
-      // Cargar catálogo primero (siempre, sin depender de Pedidos)
-      showToast('Cargando catálogo completo...', 'info');
-      catalogo = await sbRequest('GET', '?select=*&order=linea.asc,modelo.asc,medida.asc', null, 'catalogo_maxiking') || [];
-
-      if (catalogo.length === 0) {
-        // Seed del catálogo en lotes de 50
-        const lotes = [];
-        for (let i = 0; i < CATALOGO_SEED.length; i += 50)
-          lotes.push(CATALOGO_SEED.slice(i, i + 50));
-        for (const lote of lotes)
-          await sbRequest('POST', '', lote, 'catalogo_maxiking');
-        catalogo = await sbRequest('GET', '?select=*&order=linea.asc,modelo.asc,medida.asc', null, 'catalogo_maxiking') || [];
-        catalogoCargado = true;
-      }
-
+      showToast('Cargando artículos...', 'info');
       await seedColchones();
     }
     renderTable();
   } catch(e) {
-    showToast('Error al conectar con la base de datos', 'error');
+    showToast('Error al conectar: ' + e.message, 'error');
     console.error(e);
   } finally {
     setLoading(false);
@@ -1563,47 +1548,68 @@ async function loadStock() {
 }
 
 async function seedColchones() {
-  // Cargar catálogo si no está cargado todavía
-  let cat = catalogo;
-  if (!cat || cat.length === 0) {
-    cat = await sbRequest('GET', '?select=*&order=linea.asc,modelo.asc,medida.asc', null, 'catalogo_maxiking') || [];
-  }
+  // Lista completa de colchones y sommiers separados por medida
+  const items = [
+    // BONNEL SYSTEM
+    ['COLCHON','ESMERALDA','80cm'],['COLCHON','ESMERALDA','100cm'],['COLCHON','ESMERALDA','140cm'],
+    ['COLCHON','SIESTA EN LA QUEBRADA DOBLE CONFORT','80cm'],['COLCHON','SIESTA EN LA QUEBRADA DOBLE CONFORT','100cm'],['COLCHON','SIESTA EN LA QUEBRADA DOBLE CONFORT','130cm'],['COLCHON','SIESTA EN LA QUEBRADA DOBLE CONFORT','140cm'],
+    ['COLCHON','ESPEJO DE LUNA','80cm'],['COLCHON','ESPEJO DE LUNA','100cm'],['COLCHON','ESPEJO DE LUNA','130cm'],['COLCHON','ESPEJO DE LUNA','140cm'],
+    ['COLCHON','ESPEJO DE LUNA CON DOBLE PILLOW TOP','80cm'],['COLCHON','ESPEJO DE LUNA CON DOBLE PILLOW TOP','100cm'],['COLCHON','ESPEJO DE LUNA CON DOBLE PILLOW TOP','140cm'],['COLCHON','ESPEJO DE LUNA CON DOBLE PILLOW TOP','160cm'],['COLCHON','ESPEJO DE LUNA CON DOBLE PILLOW TOP','160x2cm'],['COLCHON','ESPEJO DE LUNA CON DOBLE PILLOW TOP','180x2cm'],['COLCHON','ESPEJO DE LUNA CON DOBLE PILLOW TOP','2x2m'],
+    ['COLCHON','CORRAL DE NUBES CON DOBLE PILLOW TOP','100cm'],['COLCHON','CORRAL DE NUBES CON DOBLE PILLOW TOP','140cm'],['COLCHON','CORRAL DE NUBES CON DOBLE PILLOW TOP','160x2cm'],['COLCHON','CORRAL DE NUBES CON DOBLE PILLOW TOP','180x2cm'],['COLCHON','CORRAL DE NUBES CON DOBLE PILLOW TOP','2x2m'],
+    // POCKET SYSTEM
+    ['COLCHON','VALLE DE SUEÑOS','100cm'],['COLCHON','VALLE DE SUEÑOS','140cm'],['COLCHON','VALLE DE SUEÑOS','160x2cm'],['COLCHON','VALLE DE SUEÑOS','180x2cm'],['COLCHON','VALLE DE SUEÑOS','2x2m'],
+    ['COLCHON','SILENCIO DE CIELO GRAND','100cm'],['COLCHON','SILENCIO DE CIELO GRAND','140cm'],['COLCHON','SILENCIO DE CIELO GRAND','160x2cm'],['COLCHON','SILENCIO DE CIELO GRAND','180x2cm'],['COLCHON','SILENCIO DE CIELO GRAND','2x2m'],
+    // ESPUMA FLEXIBLE
+    ['COLCHON','AMANECER','80cm'],['COLCHON','AMANECER','100cm'],
+    ['COLCHON','ATARDECER','80cm'],['COLCHON','ATARDECER','100cm'],['COLCHON','ATARDECER','130cm'],['COLCHON','ATARDECER','140cm'],
+    ['COLCHON','HOTELERO','80cm'],['COLCHON','HOTELERO','100cm'],['COLCHON','HOTELERO','130cm'],['COLCHON','HOTELERO','140cm'],
+    ['COLCHON','ARMONIA 22cm','80cm'],['COLCHON','ARMONIA 22cm','100cm'],['COLCHON','ARMONIA 22cm','130cm'],['COLCHON','ARMONIA 22cm','140cm'],
+    ['COLCHON','ARMONIA 26cm','130cm'],['COLCHON','ARMONIA 26cm','140cm'],
+    ['COLCHON','BRISAS','80cm'],['COLCHON','BRISAS','100cm'],['COLCHON','BRISAS','130cm'],['COLCHON','BRISAS','140cm'],
+    ['COLCHON','BRISAS CON DOBLE PILLOW TOP','80cm'],['COLCHON','BRISAS CON DOBLE PILLOW TOP','100cm'],['COLCHON','BRISAS CON DOBLE PILLOW TOP','130cm'],['COLCHON','BRISAS CON DOBLE PILLOW TOP','140cm'],['COLCHON','BRISAS CON DOBLE PILLOW TOP','160cm'],['COLCHON','BRISAS CON DOBLE PILLOW TOP','160x2cm'],['COLCHON','BRISAS CON DOBLE PILLOW TOP','180cm'],['COLCHON','BRISAS CON DOBLE PILLOW TOP','180x2cm'],
+    ['COLCHON','CREPUSCULO','100cm'],['COLCHON','CREPUSCULO','140cm'],['COLCHON','CREPUSCULO','160cm'],['COLCHON','CREPUSCULO','160x2cm'],['COLCHON','CREPUSCULO','180cm'],['COLCHON','CREPUSCULO','180x2cm'],
+    // SOMMIERS SEPARADOS
+    ['SOMMIER','SOMMIER BASE','80cm'],['SOMMIER','SOMMIER BASE','100cm'],['SOMMIER','SOMMIER BASE','130cm'],['SOMMIER','SOMMIER BASE','140cm'],
+    ['SOMMIER','ATARDECER','80cm'],['SOMMIER','ATARDECER','80x2cm'],['SOMMIER','ATARDECER','90cm'],['SOMMIER','ATARDECER','90x2cm'],['SOMMIER','ATARDECER','100cm'],['SOMMIER','ATARDECER','100x2cm'],['SOMMIER','ATARDECER','130cm'],['SOMMIER','ATARDECER','140cm'],
+    ['SOMMIER','HOTELERO','80cm'],['SOMMIER','HOTELERO','80x2cm'],['SOMMIER','HOTELERO','90cm'],['SOMMIER','HOTELERO','90x2cm'],['SOMMIER','HOTELERO','100cm'],['SOMMIER','HOTELERO','100x2cm'],['SOMMIER','HOTELERO','130cm'],['SOMMIER','HOTELERO','140cm'],
+    ['SOMMIER','ESPEJO DE LUNA','80cm'],['SOMMIER','ESPEJO DE LUNA','80x2cm'],['SOMMIER','ESPEJO DE LUNA','90cm'],['SOMMIER','ESPEJO DE LUNA','90x2cm'],['SOMMIER','ESPEJO DE LUNA','100cm'],['SOMMIER','ESPEJO DE LUNA','100x2cm'],['SOMMIER','ESPEJO DE LUNA','140cm'],
+    ['SOMMIER','BRISAS','80cm'],['SOMMIER','BRISAS','80x2cm'],['SOMMIER','BRISAS','90cm'],['SOMMIER','BRISAS','90x2cm'],['SOMMIER','BRISAS','100cm'],['SOMMIER','BRISAS','100x2cm'],['SOMMIER','BRISAS','140cm'],
+    ['SOMMIER','CREPUSCULO','80cm'],['SOMMIER','CREPUSCULO','90cm'],['SOMMIER','CREPUSCULO','90x2cm'],['SOMMIER','CREPUSCULO','100cm'],['SOMMIER','CREPUSCULO','130cm'],['SOMMIER','CREPUSCULO','140cm'],
+    ['SOMMIER','CORRAL DE NUBES','80cm'],['SOMMIER','CORRAL DE NUBES','90cm'],['SOMMIER','CORRAL DE NUBES','90x2cm'],['SOMMIER','CORRAL DE NUBES','100cm'],['SOMMIER','CORRAL DE NUBES','130cm'],['SOMMIER','CORRAL DE NUBES','140cm'],
+    ['SOMMIER','SILENCIO DE CIELO','80cm'],['SOMMIER','SILENCIO DE CIELO','90cm'],['SOMMIER','SILENCIO DE CIELO','90x2cm'],['SOMMIER','SILENCIO DE CIELO','100cm'],['SOMMIER','SILENCIO DE CIELO','130cm'],['SOMMIER','SILENCIO DE CIELO','140cm'],
+    ['SOMMIER','ECO CUERO','Única'],
+    // JACKARD
+    ['COLCHON','CLASICO JACKARD','80cm'],['COLCHON','CLASICO JACKARD','100cm'],
+    ['COLCHON','PICASSO','80cm'],['COLCHON','PICASSO','100cm'],['COLCHON','PICASSO','130cm'],['COLCHON','PICASSO','140cm'],
+    ['COLCHON','CONSULAR','80cm'],['COLCHON','CONSULAR','100cm'],['COLCHON','CONSULAR','130cm'],['COLCHON','CONSULAR','140cm'],
+    ['COLCHON','ZAFIRO','80cm'],['COLCHON','ZAFIRO','100cm'],['COLCHON','ZAFIRO','140cm'],['COLCHON','ZAFIRO','160x2cm'],['COLCHON','ZAFIRO','180x2cm'],['COLCHON','ZAFIRO','2x2m'],
+    ['COLCHON','COLCHON MAXIKINGBOX','80cm'],['COLCHON','COLCHON MAXIKINGBOX','100cm'],['COLCHON','COLCHON MAXIKINGBOX','140cm'],['COLCHON','COLCHON MAXIKINGBOX','160x2cm'],
+    ['SOMMIER','PICASSO','80cm'],['SOMMIER','PICASSO','80x2cm'],['SOMMIER','PICASSO','90x2cm'],['SOMMIER','PICASSO','100cm'],['SOMMIER','PICASSO','100x2cm'],['SOMMIER','PICASSO','130cm'],['SOMMIER','PICASSO','140cm'],
+    ['SOMMIER','CONSULAR','80cm'],['SOMMIER','CONSULAR','80x2cm'],['SOMMIER','CONSULAR','100cm'],['SOMMIER','CONSULAR','130cm'],['SOMMIER','CONSULAR','140cm'],
+    ['SOMMIER','ARMONIA','80cm'],['SOMMIER','ARMONIA','80x2cm'],['SOMMIER','ARMONIA','100cm'],['SOMMIER','ARMONIA','130cm'],['SOMMIER','ARMONIA','140cm'],
+    ['SOMMIER','ZAFIRO','80cm'],['SOMMIER','ZAFIRO','80x2cm'],['SOMMIER','ZAFIRO','100cm'],['SOMMIER','ZAFIRO','130cm'],['SOMMIER','ZAFIRO','140cm'],
+    ['SOMMIER','ESMERALDA','80cm'],['SOMMIER','ESMERALDA','100cm'],['SOMMIER','ESMERALDA','130cm'],['SOMMIER','ESMERALDA','140cm'],
+    ['SOMMIER','SIESTA','80cm'],['SOMMIER','SIESTA','100cm'],['SOMMIER','SIESTA','130cm'],['SOMMIER','SIESTA','140cm'],
+    // ESPUMA ESPECIALES
+    ['COLCHON','ATARDECER INFANTIL','80cm'],['SOMMIER','ATARDECER INFANTIL','80cm'],
+    ['COLCHON','SANITARIO','80cm'],
+    ['COLCHON','SILLON CAMA PLEGABLE','80cm'],
+    // PROMO JULIO 2026
+    ['COLCHON','IBIZA','80cm'],['COLCHON','IBIZA','100cm'],['COLCHON','IBIZA','130cm'],['COLCHON','IBIZA','140cm'],
+    ['COLCHON','TURIN','80cm'],['COLCHON','TURIN','100cm'],['COLCHON','TURIN','130cm'],['COLCHON','TURIN','140cm'],
+    ['SOMMIER','ECO PROMO','80cm'],['SOMMIER','ECO PROMO','100cm'],['SOMMIER','ECO PROMO','130cm'],['SOMMIER','ECO PROMO','140cm'],
+    ['COLCHON','ESMERALDA BICONICOS','80cm'],['COLCHON','ESMERALDA BICONICOS','100cm'],['COLCHON','ESMERALDA BICONICOS','140cm'],
+    ['SOMMIER','ESMERALDA BICONICOS','80cm'],['SOMMIER','ESMERALDA BICONICOS','100cm'],['SOMMIER','ESMERALDA BICONICOS','140cm'],
+  ];
 
-  // Si el catálogo tampoco tiene datos todavía, usar lista base de la factura original
-  if (cat.length === 0) {
-    const d = '2026-04-24';
-    const items = [
-      ['11709',  'COLCHON 200 X 200 X 30 ZAFIRO',    0],
-      ['11725',  'SOMMIER 100 X 200 ZAFIRO',           0],
-      ['27299',  'COLCHON 200 X 200 SILENCIO GRAND',   0],
-      ['27601',  'SOMMIER 100x200 SILENCIO',           0],
-      ['12401',  'COLCHON 200X200 ESPEJO C/P DE LUNA', 0],
-      ['12601',  'SOMMIER 100x200 ESPEJO',             0],
-      ['12401B', 'COLCHON 200x200 BRISAS C/P',         0],
-      ['12601B', 'SOMMIER 100 X 200 BRISAS',           0],
-      ['10140',  'COLCHON 140 ESMERALDA BEIGE',        0],
-      ['10640',  'SOMMIER 140 ESMERALDA MARRON',       0],
-      ['11140',  'COLCHON 140 X 22 ARMONIA',           0],
-      ['10180',  'COLCHON 080 X 17 SAB STD',           0],
-      ['10361',  'COLCHON 160x200 ESPEJO C/P DE LUNA', 0],
-      ['10581',  'SOMMIER 080x200 ESPEJO',             0],
-      ['10706',  'COLCHON 160 X 200 X 30 ZAFIRO',     0],
-    ];
-    const rows = items.map(([codigo, descripcion, cantidad]) => ({ codigo, descripcion, cantidad, fecha: today() }));
-    stockColchones = await sbRequest('POST', '', rows, 'stock') || [];
-    return;
-  }
-
-  // Cargar desde catálogo — solo colchones y sommiers, cada uno con su medida
-  const aptos = cat.filter(a => a.tipo === 'colchon' || a.tipo === 'sommier');
-  const rows = aptos.map(a => ({
-    codigo: a.id ? String(a.id) : '',
-    descripcion: `${a.tipo === 'colchon' ? 'COLCHON' : 'SOMMIER'} ${a.modelo} ${a.medida}`,
+  const rows = items.map(([tipo, modelo, medida]) => ({
+    codigo: '',
+    descripcion: `${tipo} ${modelo} ${medida}`,
     cantidad: 0,
     fecha: today()
   }));
 
-  // Insertar en lotes de 50
+  console.log(`Insertando ${rows.length} artículos en stock...`);
   stockColchones = [];
   const lotes = [];
   for (let i = 0; i < rows.length; i += 50)
@@ -1612,6 +1618,7 @@ async function seedColchones() {
     const inserted = await sbRequest('POST', '', lote, 'stock') || [];
     stockColchones.push(...inserted);
   }
+  console.log(`Stock cargado: ${stockColchones.length} artículos`);
 }
 
 // ── LOAD MUEBLES ──────────────────────────────────────────────────────────────
