@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<!-- v2.8 -->
 <title>Mueblería Mühn — Gestión de Stock</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@300;400;500;600&family=Exo+2:wght@700;800;900&display=swap" rel="stylesheet">
 <style>
@@ -731,11 +735,14 @@ tbody tr.no-stock:hover  { background: #FFEBEE; }
     <img src="logo_muebleria.jpg" alt="Mueblería Mühn" class="logo-img">
   </div>
   <span class="header-badge">Gestión de Stock</span>
-  <button class="btn-settings" onclick="openSettings()" title="Configurar API Keys">
-    <div class="settings-dot" id="settingsDot"></div>
-    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-    API Keys
-  </button>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span style="font-size:10px;color:var(--gray-300);font-family:monospace;">v2.8</span>
+    <button class="btn-settings" onclick="openSettings()" title="Configurar API Keys">
+      <div class="settings-dot" id="settingsDot"></div>
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      API Keys
+    </button>
+  </div>
 </header>
 
 <!-- NAVIGATION MODULE TABS -->
@@ -1527,11 +1534,23 @@ async function loadStock() {
   setLoading(true);
   try {
     stockColchones = await sbRequest('GET', '?select=*&order=descripcion.asc', null, 'stock') || [];
+
     if (stockColchones.length === 0) {
-      // Intentar cargar catálogo primero para seed completo
-      if (!catalogoCargado) {
+      // Cargar catálogo primero (siempre, sin depender de Pedidos)
+      showToast('Cargando catálogo completo...', 'info');
+      catalogo = await sbRequest('GET', '?select=*&order=linea.asc,modelo.asc,medida.asc', null, 'catalogo_maxiking') || [];
+
+      if (catalogo.length === 0) {
+        // Seed del catálogo en lotes de 50
+        const lotes = [];
+        for (let i = 0; i < CATALOGO_SEED.length; i += 50)
+          lotes.push(CATALOGO_SEED.slice(i, i + 50));
+        for (const lote of lotes)
+          await sbRequest('POST', '', lote, 'catalogo_maxiking');
         catalogo = await sbRequest('GET', '?select=*&order=linea.asc,modelo.asc,medida.asc', null, 'catalogo_maxiking') || [];
+        catalogoCargado = true;
       }
+
       await seedColchones();
     }
     renderTable();
