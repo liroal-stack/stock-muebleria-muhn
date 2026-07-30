@@ -807,7 +807,9 @@ tbody tr.no-stock:hover  { background: #FFEBEE; }
   <!-- PROVIDER TABS REVESTIMIENTOS -->
   <div class="provider-tabs" id="providerTabsRev" style="display:none"></div>
 
-  <div class="toolbar">
+
+  <!-- Toolbar Colchones (solo visible en pestaña Colchones) -->
+  <div class="toolbar" id="toolbarColchones" style="display:none;">
     <div class="search-box">
       <svg class="search-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       <input type="text" placeholder="Buscar por nombre... (ej: BRISAS)" id="searchInput" oninput="renderTable()" autocomplete="off">
@@ -821,6 +823,28 @@ tbody tr.no-stock:hover  { background: #FFEBEE; }
       <option value="all">Todas las medidas</option>
     </select>
     <select class="filter-select" id="filterStock" onchange="renderTable()">
+      <option value="all">Todos</option>
+      <option value="ok">Stock normal</option>
+      <option value="low">Stock bajo</option>
+      <option value="zero">Sin stock</option>
+    </select>
+    <button class="btn btn-secondary btn-sm" onclick="openScanModal()">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Subir Factura
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="exportCSV()">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      CSV
+    </button>
+  </div>
+
+  <!-- Toolbar genérico (Muebles y Revestimientos) -->
+  <div class="toolbar" id="toolbarGenerico" style="display:none;">
+    <div class="search-box">
+      <svg class="search-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" placeholder="Buscar artículo..." id="searchInputGenerico" oninput="renderTable()" autocomplete="off">
+    </div>
+    <select class="filter-select" id="filterStockGenerico" onchange="renderTable()">
       <option value="all">Todos</option>
       <option value="ok">Stock normal</option>
       <option value="low">Stock bajo</option>
@@ -1395,8 +1419,14 @@ async function switchModule(mod) {
 
   // Mostrar/ocultar módulo pedidos vs inventario
   const isStock = ['colchones','muebles','revestimientos'].includes(mod);
-  document.getElementById('modulePedidos').style.display = mod === 'pedidos' ? '' : 'none';
-  document.getElementById('moduleStock').style.display   = isStock ? '' : 'none';
+  document.getElementById('modulePedidos').style.display  = mod === 'pedidos' ? '' : 'none';
+  document.getElementById('moduleStock').style.display    = isStock ? '' : 'none';
+  // Mostrar toolbar correcto
+  if (isStock) {
+    const isColchones = mod === 'colchones';
+    document.getElementById('toolbarColchones').style.display = isColchones ? '' : 'none';
+    document.getElementById('toolbarGenerico').style.display  = isColchones ? 'none' : '';
+  }
 
   updateSectionTitle();
 
@@ -1726,8 +1756,22 @@ async function seedMosconi() {
 
 // ── RENDER ────────────────────────────────────────────────────────────────────
 function renderTable() {
-  const search  = document.getElementById('searchInput').value.toLowerCase().trim();
-  const filter  = document.getElementById('filterStock').value;
+  // Mostrar toolbar correcto
+  const tcol = document.getElementById('toolbarColchones');
+  const tgen = document.getElementById('toolbarGenerico');
+  if (tcol && tgen) {
+    tcol.style.display = activeModule === 'colchones' ? '' : 'none';
+    tgen.style.display = (activeModule === 'muebles' || activeModule === 'revestimientos') ? '' : 'none';
+  }
+
+  // Leer filtros según módulo activo
+  const isColchones = activeModule === 'colchones';
+  const search = isColchones
+    ? (document.getElementById('searchInput')?.value || '').toLowerCase().trim()
+    : (document.getElementById('searchInputGenerico')?.value || '').toLowerCase().trim();
+  const filter = isColchones
+    ? (document.getElementById('filterStock')?.value || 'all')
+    : (document.getElementById('filterStockGenerico')?.value || 'all');
   const mobile  = window.innerWidth <= 640;
 
   // Filtros extra solo para colchones
